@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>스트리밍 챗봇</title>
+  <style>
+    /* 채팅 버튼 및 팝업창 관련 스타일 */
+    #chat-popup {
+      display: none;
+    }
+    #chat-button {
+      position: fixed;
+      bottom: 20px;
+      right: 50px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background-color: #007bff;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      cursor: pointer;
+      transition: transform 0.3s ease;
+      z-index: 1000;
+    }
+    #chat-button:hover {
+      transform: scale(1.1);
+    }
+    #chat-button img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+    }
+    #chat-popup {
+      position: fixed;
+      bottom: 95px;
+      right: 50px;
+      width: 430px;
+      height: 705px;
+      background-color: #fff;
+      border-radius: 30px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 999;
+    }
+    #chat-popup.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    /* 헤더 영역 */
+    #chat-header {
+      background-color: transparent;
+      padding: 20px;
+      font-size: 16px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+    #chat-svg {
+      margin-bottom: 0.5px;
+    }
+    #chat-header small {
+      display: block;
+      font-size: 12px;
+      color: #666;
+    }
+    /* 대화 영역 */
+    #chat-body {
+      padding: 10px;
+      height: calc(95% - 140px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .message {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 10px;
+      max-width: 80%;
+    }
+    .message.bot {
+      background-color: #e9ecef;
+      align-self: flex-start;
+    }
+    .message.user {
+      background-color: #007bff;
+      color: #fff;
+      align-self: flex-end;
+    }
+    /* 입력창 영역 */
+    #chat-input {
+      padding: 10px;
+      border-top: 1px solid #ddd;
+    }
+    .input-wrapper {
+      display: flex;
+      align-items: center;
+      background: #f1f1f1;
+      border-radius: 30px;
+      padding: 5px 10px;
+    }
+    .input-wrapper input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 16px;
+      padding: 10px;
+    }
+    /* 보내기 버튼 스타일 */
+    .send-icon {
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-size: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- 채팅 버튼 -->
+  <div id="chat-button">
+    <img src="chat-icon.png" alt="Chat Button">
+  </div>
+  
+  <!-- 채팅 팝업창 -->
+  <div id="chat-popup">
+    <div id="chat-header">
+      <div id="chat-svg">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#007bff" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10"/>
+        </svg>
+      </div>
+      <small>저희 챗봇과 대화하세요!</small>
+    </div>
+    <div id="chat-body">
+      <div class="message bot" style="white-space: pre-wrap;">안녕하세요! 무엇을 도와드릴까요?</div>
+    </div>
+    <div id="chat-input">
+      <!-- form 태그 없이 단순 div로 감싸거나, submit 방지를 위한 이벤트 핸들링 추가 -->
+      <div class="input-wrapper">
+        <input type="text" id="chat-input-field" placeholder="메시지를 입력해주세요.">
+        <button type="button" class="send-icon" id="sendButton">→</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const chatButton = document.getElementById("chat-button");
+      const chatPopup = document.getElementById("chat-popup");
+      const chatInput = document.getElementById("chat-input-field");
+      const sendButton = document.getElementById("sendButton");
+      const chatBody = document.getElementById("chat-body");
+
+      // 채팅 팝업 열기/닫기 토글
+      chatButton.addEventListener("click", function() {
+        if (chatPopup.classList.contains("show")) {
+          chatPopup.classList.remove("show");
+          setTimeout(() => { chatPopup.style.display = "none"; }, 300);
+        } else {
+          chatPopup.style.display = "block";
+          setTimeout(() => { chatPopup.classList.add("show"); }, 10);
+        }
+      });
+
+      // 메시지 전송 함수 (스트리밍 응답 받기)
+      function sendMessage() {
+        const message = chatInput.value;
+        if (message.trim() === "") return;
+
+        // 사용자 메시지 출력
+        appendMessage("user", message);
+        chatInput.value = "";
+        sendButton.style.display = "none";
+
+        // 새로운 메시지 박스 생성 (응답 박스)
+        const botMessageBox = document.createElement("div");
+        botMessageBox.classList.add("message", "bot");
+        botMessageBox.style.whiteSpace = "pre-wrap";
+        botMessageBox.textContent = "";
+        chatBody.appendChild(botMessageBox);
+        chatBody.scrollTop = chatBody.scrollHeight;
+
+        fetch('http://127.0.0.1:5000/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: message })
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('서버 응답 오류');
+          }
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          async function processStream() {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                // 스트림 데이터를 바로 추가 (공백, 띄어쓰기 모두 그대로 출력)
+                botMessageBox.textContent += decoder.decode(value, { stream: true });
+                chatBody.scrollTop = chatBody.scrollHeight;
+              }
+            } catch (error) {
+              console.error("스트림 처리 중 에러 발생:", error);
+              botMessageBox.textContent += "\n오류 발생! 다시 시도해 주세요.";
+            }
+          }
+          processStream();
+        })
+        .catch(error => {
+          console.error("메시지 전송 오류:", error);
+          botMessageBox.textContent += "\n오류가 발생했습니다. 다시 시도해주세요.";
+        });
+      }
+
+      // 메시지 출력 함수
+      function appendMessage(sender, message) {
+        const messageDiv = document.createElement("div");
+        messageDiv.classList.add("message", sender);
+        // 사용자 메시지는 일반 텍스트로 출력
+        messageDiv.textContent = message;
+        chatBody.appendChild(messageDiv);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+
+      // 보내기 버튼 클릭 시 메시지 전송
+      sendButton.addEventListener("click", sendMessage);
+
+      // 엔터 키 입력 시 메시지 전송 (Shift+Enter는 개행)
+      chatInput.addEventListener("keypress", function(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          sendMessage();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
